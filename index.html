@@ -88,7 +88,13 @@ main.grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1f
 .zone-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .zone-table th { text-align: left; font: 500 11px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 10px 16px 6px; }
 .zone-table td { padding: 7px 16px; border-top: 1px solid var(--line); }
-.zone-table td.n { text-align: right; }
+.zone-table td.n, .zone-table th.n { text-align: right; }
+.zone-table tbody tr { cursor: pointer; }
+.zone-table tbody tr:hover, .zone-table tbody tr:focus-visible { background: var(--accent-soft); outline: none; }
+.zone-intro { padding: 4px 16px 0; font-size: 13px; color: var(--muted); }
+.zbadge, .zlabel span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--surface); font: 700 12px/1 var(--f-body); }
+.zbadge { margin-right: 8px; }
+.zlabel { background: none; border: 0; }
 
 .row { display: grid; grid-template-columns: 74px minmax(0, 1fr) 44px; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); cursor: pointer; background: none; border-left: 0; border-right: 0; border-top: 0; width: 100%; text-align: left; color: inherit; font: inherit; }
 .row:hover, .row.sel { background: var(--accent-soft); }
@@ -226,29 +232,37 @@ footer a { color: var(--accent); }
   function renderZones() {
     layer.clearLayers();
     const zs = filtered(D.zones);
+    // Rànquing: zones amb almenys 10 anuncis, ordenades pel percentatge de prioritzats
+    const top = zs.filter(z => z.anuncis >= 10 && z.prioritzats > 0)
+      .sort((a, b) => b.prioritzats / b.anuncis - a.prioritzats / a.anuncis || b.prioritzats - a.prioritzats).slice(0, 10);
+    const rects = new Map();
     zs.forEach(z => {
-      const p = z.prioritzats / z.anuncis;
-      L.rectangle([[z.bbox[0], z.bbox[1]], [z.bbox[2], z.bbox[3]]], {
-        color: shareColor(p), weight: 1, fillColor: shareColor(p), fillOpacity: shareOpacity(p)
-      }).bindTooltip(`<b>${z.prioritzats} de ${z.anuncis}</b> anuncis prioritzats<br>Risc mitjà ${String(z.risc_mitja).replace('.', ',')}`, { sticky: true }).addTo(layer);
+      const p = z.prioritzats / z.anuncis, k = top.indexOf(z);
+      const r = L.rectangle([[z.bbox[0], z.bbox[1]], [z.bbox[2], z.bbox[3]]], {
+        color: k >= 0 ? css('--ink') : shareColor(p), weight: k >= 0 ? 2 : 1, fillColor: shareColor(p), fillOpacity: shareOpacity(p)
+      }).bindTooltip(`<b>${z.prioritzats} de ${z.anuncis}</b> anuncis prioritzats (${Math.round(100 * p)} %)<br>Risc mitjà ${String(z.risc_mitja).replace('.', ',')}`, { sticky: true }).addTo(layer);
+      if (k >= 0) L.marker([(z.bbox[0] + z.bbox[2]) / 2, (z.bbox[1] + z.bbox[3]) / 2], {
+        icon: L.divIcon({ className: 'zlabel', html: `<span>${k + 1}</span>`, iconSize: [22, 22] }), interactive: false
+      }).addTo(layer);
+      rects.set(z, r);
     });
     const tot = zs.reduce((a, z) => a + z.anuncis, 0), pr = zs.reduce((a, z) => a + z.prioritzats, 0);
     document.getElementById('p-title').textContent = 'Zones de ~250 m';
-    document.getElementById('p-count').textContent = `${zs.length} zones · ${fmt(pr)} de ${fmt(tot)}`;
-    const top = [...zs].sort((a, b) => b.prioritzats - a.prioritzats || b.risc_mitja - a.risc_mitja).slice(0, 12);
-    const sw = ['--risk-low', '--risk-low', '--risk-mid', '--risk-mid', '--risk-high'].map(v => `<i style="background:${css(v)};opacity:${[.3,.45,.55,.65,.75][['--risk-low','--risk-low','--risk-mid','--risk-mid','--risk-high'].indexOf(v)]}"></i>`).join('');
+    document.getElementById('p-count').textContent = `${fmt(pr)} prioritzats de ${fmt(tot)} anuncis`;
     document.getElementById('p-body').innerHTML = `
       <div class="legend">
-        <div>Percentatge d'anuncis prioritzats a cada zona</div>
+        <div>Cada quadrat del mapa és una zona d'uns 250 × 250 m. El color indica quin percentatge dels seus anuncis el sistema prioritza per revisar.</div>
         <div class="scale">${['--risk-low','--risk-low','--risk-mid','--risk-mid','--risk-high'].map((v,i)=>`<i style="background:${css(v)};opacity:${.3+i*.12}"></i>`).join('')}</div>
         <div class="scale-labels"><span>0 %</span><span>10 %</span><span>20 %</span><span>30 %</span><span>≥40 %</span></div>
-        <div style="color:var(--muted);font-size:12px">Només es mostren les zones amb 3 anuncis o més.</div>
+        <div style="color:var(--muted);font-size:12px">Per privacitat, les zones amb menys de 3 anuncis no es mostren.</div>
       </div>
-      <table class="zone-table"><thead><tr><th>Zona amb més prioritzats</th><th style="text-align:right">Prior.</th><th style="text-align:right">Anuncis</th></tr></thead>
-      <tbody>${top.map((z, i) => `<tr data-i="${zs.indexOf(z)}" style="cursor:pointer"><td>${esc(z.municipi)} · ${z.bbox[0].toFixed(3)}, ${z.bbox[1].toFixed(3)}</td><td class="n">${z.prioritzats}</td><td class="n">${z.anuncis}</td></tr>`).join('')}</tbody></table>`;
-    document.querySelectorAll('.zone-table tbody tr').forEach(tr => tr.addEventListener('click', () => {
-      const z = zs[+tr.dataset.i]; map.fitBounds([[z.bbox[0], z.bbox[1]], [z.bbox[2], z.bbox[3]]], { maxZoom: 16 });
-    }));
+      <div class="zone-intro">Les 10 zones amb més proporció d'anuncis prioritzats (entre les que tenen 10 anuncis o més). El número coincideix amb l'etiqueta del mapa; fes-hi clic per anar-hi.</div>
+      <table class="zone-table"><thead><tr><th>Zona</th><th class="n">Prioritzats</th><th class="n">Anuncis</th><th class="n">%</th></tr></thead>
+      <tbody>${top.map((z, i) => `<tr data-i="${i}" tabindex="0"><td><span class="zbadge">${i + 1}</span>${esc(z.municipi)}</td><td class="n">${z.prioritzats}</td><td class="n">${z.anuncis}</td><td class="n"><b>${Math.round(100 * z.prioritzats / z.anuncis)} %</b></td></tr>`).join('')}</tbody></table>`;
+    document.querySelectorAll('.zone-table tbody tr').forEach(tr => {
+      const go = () => { const z = top[+tr.dataset.i]; map.fitBounds([[z.bbox[0], z.bbox[1]], [z.bbox[2], z.bbox[3]]], { maxZoom: 17 }); rects.get(z).openTooltip(); };
+      tr.addEventListener('click', go); tr.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    });
   }
 
   function anuncisVisibles() {
