@@ -39,6 +39,7 @@
   --map-bg: #1a2a2e; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); margin: 0; }
 .wrap { max-width: 1280px; margin: 0 auto; padding-inline: 20px; padding-block: 20px 28px; display: flex; flex-direction: column; gap: 16px; }
@@ -72,6 +73,8 @@ h1 span { color: var(--accent); }
 main.grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; min-height: 560px; }
 #map { min-height: 560px; border: 1px solid var(--line); border-radius: 10px; background: var(--map-bg); }
 .leaflet-container { font: inherit; background: var(--map-bg); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .leaflet-tile-pane { filter: saturate(.6) brightness(.82); } }
+:root[data-theme="dark"] .leaflet-tile-pane { filter: saturate(.6) brightness(.82); }
 .leaflet-tooltip { font: 13px/1.4 var(--f-body); color: #12262c; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; max-height: 640px; }
 .panel-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
@@ -162,8 +165,8 @@ footer a { color: var(--accent); }
     </div>
     <span class="ctl-label">Municipi</span>
     <div class="seg" role="group" aria-label="Municipi">
-      <button type="button" id="m-tots" aria-pressed="true">Tots</button>
-      <button type="button" id="m-tossa" aria-pressed="false">Tossa de Mar</button>
+      <button type="button" id="m-tots" aria-pressed="false">Tots</button>
+      <button type="button" id="m-tossa" aria-pressed="true">Tossa de Mar</button>
       <button type="button" id="m-cadaques" aria-pressed="false">Cadaqués</button>
     </div>
     <label class="chk" id="chk-wrap" hidden><input type="checkbox" id="only-prio" checked> Només prioritzats</label>
@@ -194,16 +197,16 @@ footer a { color: var(--accent); }
   const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  const state = { view: 'zones', mun: 'tots', onlyPrio: true, sel: null };
+  const state = { view: 'zones', mun: 'tossa', onlyPrio: true, sel: null };
   let D = { zones: [], anuncis: [], resum: null };
 
   const map = L.map('map', { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
   const layer = L.layerGroup().addTo(map);
-  map.fitBounds(VIEW.tots);
+  map.fitBounds(VIEW.tossa);
 
   function riskColor(r) { return r >= 60 ? css('--risk-high') : r >= 30 ? css('--risk-mid') : css('--risk-low'); }
   function shareColor(p) {
@@ -227,6 +230,7 @@ footer a { color: var(--accent); }
     document.getElementById('p-title').textContent = 'Zones de ~250 m';
     document.getElementById('p-count').textContent = `${zs.length} zones · ${fmt(pr)} de ${fmt(tot)}`;
     const top = [...zs].sort((a, b) => b.prioritzats - a.prioritzats || b.risc_mitja - a.risc_mitja).slice(0, 12);
+    const sw = ['--risk-low', '--risk-low', '--risk-mid', '--risk-mid', '--risk-high'].map(v => `<i style="background:${css(v)};opacity:${[.3,.45,.55,.65,.75][['--risk-low','--risk-low','--risk-mid','--risk-mid','--risk-high'].indexOf(v)]}"></i>`).join('');
     document.getElementById('p-body').innerHTML = `
       <div class="legend">
         <div>Percentatge d'anuncis prioritzats a cada zona</div>
