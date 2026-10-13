@@ -1,0 +1,1 @@
+{"data_dades":"30/06/2026","llindar":30,"model":"openai","total":1329,"prioritzats":164,"amb_risc":332,"per_municipi":{"Cadaqués":{"total":519,"prioritzats":53},"Tossa de Mar":{"total":810,"prioritzats":111}},"avaluacio":{"precisio":0.67,"exhaustivitat":0.91,"mostra":200}}
