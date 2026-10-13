@@ -207,6 +207,12 @@ footer a { color: var(--accent); }
   }).addTo(map);
   const layer = L.layerGroup().addTo(map);
   map.fitBounds(VIEW.tossa);
+  // Si el contenidor del mapa encara no tenia mida en crear-lo, Leaflet calcula un zoom mundial: es recalcula quan la mida canvia
+  let encaixat = false;
+  new ResizeObserver(() => {
+    map.invalidateSize();
+    if (!encaixat && map.getSize().y > 100) { map.fitBounds(VIEW[state.mun]); encaixat = true; }
+  }).observe(document.getElementById('map'));
 
   function riskColor(r) { return r >= 60 ? css('--risk-high') : r >= 30 ? css('--risk-mid') : css('--risk-low'); }
   function shareColor(p) {
@@ -325,6 +331,7 @@ footer a { color: var(--accent); }
   Promise.all(['zones', 'anuncis', 'resum'].map(n => fetch(`data/${n}.json`).then(r => { if (!r.ok) throw new Error(n); return r.json(); })))
     .then(([zones, anuncis, resum]) => {
       D = { zones, anuncis, resum };
+      map.invalidateSize(); map.fitBounds(VIEW[state.mun]);
       document.getElementById('f-total').textContent = fmt(resum.total);
       document.getElementById('f-prio').textContent = fmt(resum.prioritzats);
       document.getElementById('foot-data').textContent = `Dades: Inside Airbnb (${resum.data_dades}) i Registre de Turisme de Catalunya (Dades obertes de la Generalitat).`;
